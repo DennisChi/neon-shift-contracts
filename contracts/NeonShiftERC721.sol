@@ -139,26 +139,16 @@ contract NeonShiftERC721 is IERC721Metadata, IERC721Errors {
         bytes memory data
     ) internal {
         _transferFrom(from, to, tokenId);
-        if (to.code.length > 0) {
-            try
-                IERC721Receiver(to).onERC721Received(
-                    msg.sender,
-                    from,
-                    tokenId,
-                    data
-                )
-            returns (bytes4 retval) {
-                if (retval != IERC721Receiver.onERC721Received.selector) {
-                    revert ERC721InvalidReceiver(to);
-                }
-            } catch (bytes memory reason) {
-                if (reason.length == 0) {
-                    revert ERC721InvalidReceiver(to);
-                } else {
-                    assembly {
-                        revert(add(32, reason), mload(reason))
-                    }
-                }
+
+        if (to.code.length != 0) {
+            bool success = IERC721Receiver(to).onERC721Received(
+                msg.sender,
+                from,
+                tokenId,
+                data
+            ) == IERC721Receiver.onERC721Received.selector;
+            if (!success) {
+                revert ERC721InvalidReceiver(to);
             }
         }
     }
