@@ -10,4 +10,6 @@ interface IGameController {
     }
 
     function partsOf(uint256 tokenId) external view returns (Part[] memory);
+
+    function partOf(uint256 partId) external view returns (Part memory);
 }

@@ -5,8 +5,12 @@ import {IERC1155} from "./interfaces/IERC1155.sol";
 import {IERC1155MetadataURI} from "./interfaces/IERC1155MetadataURI.sol";
 import {IERC1155Errors} from "./interfaces/IERC1155Errors.sol";
 import {IERC1155Receiver} from "./interfaces/IERC1155Receiver.sol";
+import {Ownable} from "./access/Ownable.sol";
+import {IGameController} from "./interfaces/IGameController.sol";
+import {Base64} from "./libraries/Base64.sol";
+import {Strings} from "./libraries/Strings.sol";
 
-contract NeonShiftERC1155 is IERC1155MetadataURI, IERC1155Errors {
+contract NeonShiftERC1155 is IERC1155MetadataURI, IERC1155Errors, Ownable {
     mapping(address => mapping(address => bool)) private _operatorApprovals;
     mapping(address => mapping(uint256 => uint256)) private _balances;
 
@@ -46,6 +50,10 @@ contract NeonShiftERC1155 is IERC1155MetadataURI, IERC1155Errors {
         }
         _;
     }
+
+    constructor(
+        address gameControllerAddress_
+    ) Ownable(gameControllerAddress_) {}
 
     function setApprovalForAll(
         address operator,
@@ -118,6 +126,43 @@ contract NeonShiftERC1155 is IERC1155MetadataURI, IERC1155Errors {
         emit TransferBatch(msg.sender, from, to, ids, amounts);
     }
 
+    function mint(address to, uint256 id, uint256 amount) external onlyOwner {
+        _mint(to, id, amount);
+        emit TransferSingle(msg.sender, address(0), to, id, amount);
+    }
+
+    function burn(address from, uint256 id, uint256 amount) external onlyOwner {
+        _burn(from, id, amount);
+        emit TransferSingle(msg.sender, from, address(0), id, amount);
+    }
+
+    function batchMint(
+        address to,
+        uint256[] memory ids,
+        uint256[] memory amounts
+    )
+        external
+        onlyOwner
+        validReceiver(to)
+        validArrayLength(ids.length, amounts.length)
+    {
+        for (uint256 i = 0; i < ids.length; i++) {
+            _mint(to, ids[i], amounts[i]);
+        }
+        emit TransferBatch(msg.sender, address(0), to, ids, amounts);
+    }
+
+    function batchBurn(
+        address from,
+        uint256[] memory ids,
+        uint256[] memory amounts
+    ) external onlyOwner validArrayLength(ids.length, amounts.length) {
+        for (uint256 i = 0; i < ids.length; i++) {
+            _burn(from, ids[i], amounts[i]);
+        }
+        emit TransferBatch(msg.sender, from, address(0), ids, amounts);
+    }
+
     function balanceOf(
         address account,
         uint256 id
@@ -146,7 +191,29 @@ contract NeonShiftERC1155 is IERC1155MetadataURI, IERC1155Errors {
     }
 
     function uri(uint256 id) external view returns (string memory) {
-        // TODO: 实现uri函数
+        IGameController gameController = IGameController(owner());
+        IGameController.Part memory part = gameController.partOf(id);
+        string memory json = string(
+            abi.encodePacked(
+                '{"name":"',
+                part.name,
+                '","type":"',
+                part.partType,
+                " - Rare Level: ",
+                Strings.toString(part.rareLevel),
+                '","image":"',
+                part.image,
+                '"}'
+            )
+        );
+
+        return
+            string(
+                abi.encodePacked(
+                    "data:application/json;base64,",
+                    Base64.encode(bytes(json))
+                )
+            );
     }
 
     function supportsInterface(
@@ -172,5 +239,23 @@ contract NeonShiftERC1155 is IERC1155MetadataURI, IERC1155Errors {
             _balances[from][id] = fromBalance - amount;
         }
         _balances[to][id] += amount;
+    }
+
+    function _mint(
+        address to,
+        uint256 id,
+        uint256 amount
+    ) internal validReceiver(to) {
+        _balances[to][id] += amount;
+    }
+
+    function _burn(address from, uint256 id, uint256 amount) internal {
+        uint256 fromBalance = _balances[from][id];
+        if (fromBalance < amount) {
+            revert ERC1155InsufficientBalance(from, fromBalance, amount, id);
+        }
+        unchecked {
+            _balances[from][id] = fromBalance - amount;
+        }
     }
 }
