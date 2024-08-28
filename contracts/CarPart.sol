@@ -5,12 +5,18 @@ import {IERC1155} from "./interfaces/IERC1155.sol";
 import {IERC1155MetadataURI} from "./interfaces/IERC1155MetadataURI.sol";
 import {IERC1155Errors} from "./interfaces/IERC1155Errors.sol";
 import {IERC1155Receiver} from "./interfaces/IERC1155Receiver.sol";
+import {IERC1155BurnMint} from "./interfaces/IERC1155BurnMint.sol";
 import {Ownable} from "./access/Ownable.sol";
-import {IGameController} from "./interfaces/IGameController.sol";
+import {ICarFactory} from "./interfaces/ICarFactory.sol";
 import {Base64} from "./libraries/Base64.sol";
 import {Strings} from "./libraries/Strings.sol";
 
-contract NeonShiftERC1155 is IERC1155MetadataURI, IERC1155Errors, Ownable {
+contract CarPart is
+    IERC1155MetadataURI,
+    IERC1155Errors,
+    IERC1155BurnMint,
+    Ownable
+{
     mapping(address => mapping(address => bool)) private _operatorApprovals;
     mapping(address => mapping(uint256 => uint256)) private _balances;
 
@@ -126,39 +132,46 @@ contract NeonShiftERC1155 is IERC1155MetadataURI, IERC1155Errors, Ownable {
         emit TransferBatch(msg.sender, from, to, ids, amounts);
     }
 
-    function mint(address to, uint256 id, uint256 amount) external onlyOwner {
-        _mint(to, id, amount);
-        emit TransferSingle(msg.sender, address(0), to, id, amount);
+    function mint(
+        address to,
+        uint256 id
+    ) external override onlyOwner validReceiver(to) {
+        _mint(to, id);
+        emit TransferSingle(msg.sender, address(0), to, id, 1);
     }
 
-    function burn(address from, uint256 id, uint256 amount) external onlyOwner {
-        _burn(from, id, amount);
-        emit TransferSingle(msg.sender, from, address(0), id, amount);
+    function burn(
+        address from,
+        uint256 id
+    ) external override onlyOwner validReceiver(from) {
+        _burn(from, id);
+        emit TransferSingle(msg.sender, from, address(0), id, 1);
     }
 
     function batchMint(
         address to,
-        uint256[] memory ids,
-        uint256[] memory amounts
-    )
-        external
-        onlyOwner
-        validReceiver(to)
-        validArrayLength(ids.length, amounts.length)
-    {
+        uint256[] memory ids
+    ) external override onlyOwner validReceiver(to) {
         for (uint256 i = 0; i < ids.length; i++) {
-            _mint(to, ids[i], amounts[i]);
+            _mint(to, ids[i]);
+        }
+        uint256[] memory amounts = new uint256[](ids.length);
+        for (uint256 i = 0; i < ids.length; i++) {
+            amounts[i] = 1;
         }
         emit TransferBatch(msg.sender, address(0), to, ids, amounts);
     }
 
     function batchBurn(
         address from,
-        uint256[] memory ids,
-        uint256[] memory amounts
-    ) external onlyOwner validArrayLength(ids.length, amounts.length) {
+        uint256[] memory ids
+    ) external override onlyOwner validReceiver(from) {
         for (uint256 i = 0; i < ids.length; i++) {
-            _burn(from, ids[i], amounts[i]);
+            _burn(from, ids[i]);
+        }
+        uint256[] memory amounts = new uint256[](ids.length);
+        for (uint256 i = 0; i < ids.length; i++) {
+            amounts[i] = 1;
         }
         emit TransferBatch(msg.sender, from, address(0), ids, amounts);
     }
@@ -191,8 +204,8 @@ contract NeonShiftERC1155 is IERC1155MetadataURI, IERC1155Errors, Ownable {
     }
 
     function uri(uint256 id) external view returns (string memory) {
-        IGameController gameController = IGameController(owner());
-        IGameController.Part memory part = gameController.partOf(id);
+        ICarFactory gameController = ICarFactory(owner());
+        ICarFactory.Part memory part = gameController.partOf(id);
         string memory json = string(
             abi.encodePacked(
                 '{"name":"',
@@ -241,21 +254,17 @@ contract NeonShiftERC1155 is IERC1155MetadataURI, IERC1155Errors, Ownable {
         _balances[to][id] += amount;
     }
 
-    function _mint(
-        address to,
-        uint256 id,
-        uint256 amount
-    ) internal validReceiver(to) {
-        _balances[to][id] += amount;
+    function _mint(address to, uint256 id) internal validReceiver(to) {
+        _balances[to][id] += 1;
     }
 
-    function _burn(address from, uint256 id, uint256 amount) internal {
+    function _burn(address from, uint256 id) internal {
         uint256 fromBalance = _balances[from][id];
-        if (fromBalance < amount) {
-            revert ERC1155InsufficientBalance(from, fromBalance, amount, id);
+        if (fromBalance == 0) {
+            revert ERC1155InsufficientBalance(from, fromBalance, 0, id);
         }
         unchecked {
-            _balances[from][id] = fromBalance - amount;
+            _balances[from][id] = fromBalance - 1;
         }
     }
 }

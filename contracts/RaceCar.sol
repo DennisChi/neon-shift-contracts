@@ -5,12 +5,13 @@ import {IERC165} from "./interfaces/IERC165.sol";
 import {IERC721Metadata} from "./interfaces/IERC721Metadata.sol";
 import {IERC721Errors} from "./interfaces/IERC721Errors.sol";
 import {IERC721Receiver} from "./interfaces/IERC721Receiver.sol";
-import {IGameController} from "./interfaces/IGameController.sol";
+import {ICarFactory} from "./interfaces/ICarFactory.sol";
 import {Base64} from "./libraries/Base64.sol";
 import {Strings} from "./libraries/Strings.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC721BurnMint} from "./interfaces/IERC721BurnMint.sol";
 
-contract NeonShiftERC721 is IERC721Metadata, IERC721Errors, Ownable {
+contract RaceCar is IERC721Metadata, IERC721Errors, IERC721BurnMint, Ownable {
     string private _name;
     string private _symbol;
 
@@ -94,15 +95,21 @@ contract NeonShiftERC721 is IERC721Metadata, IERC721Errors, Ownable {
         emit ApprovalForAll(msg.sender, operator, approved);
     }
 
-    function mint(address to) external onlyOwner validAddress(to) {
-        uint256 tokenId = ++_maxTokenId;
+    function mint(
+        address to
+    ) external override onlyOwner validAddress(to) returns (uint256 tokenId) {
+        tokenId = ++_maxTokenId;
         _balanceOf[to]++;
         _owners[tokenId] = to;
 
         emit Transfer(address(0), to, tokenId);
+
+        return tokenId;
     }
 
-    function burn(uint256 tokenId) external onlyOwner validToken(tokenId) {
+    function burn(
+        uint256 tokenId
+    ) external override onlyOwner validToken(tokenId) {
         address owner = _owners[tokenId];
         _balanceOf[owner]--;
         delete _owners[tokenId];
@@ -147,8 +154,8 @@ contract NeonShiftERC721 is IERC721Metadata, IERC721Errors, Ownable {
     function tokenURI(
         uint256 tokenId
     ) external view override validToken(tokenId) returns (string memory) {
-        IGameController gameController = IGameController(owner());
-        IGameController.Part[] memory parts = gameController.partsOf(tokenId);
+        ICarFactory gameController = ICarFactory(owner());
+        ICarFactory.Part[] memory parts = gameController.partsOf(tokenId);
         string memory svgImage = '<svg xmlns="http://www.w3.org/2000/svg">';
         string memory jsonParts = "[";
         for (uint i = 0; i < parts.length; i++) {
