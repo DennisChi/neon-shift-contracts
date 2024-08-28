@@ -5,8 +5,12 @@ import {IERC165} from "./interfaces/IERC165.sol";
 import {IERC721Metadata} from "./interfaces/IERC721Metadata.sol";
 import {IERC721Errors} from "./interfaces/IERC721Errors.sol";
 import {IERC721Receiver} from "./interfaces/IERC721Receiver.sol";
+import {IGameController} from "./interfaces/IGameController.sol";
+import {Base64} from "./libraries/Base64.sol";
+import {Strings} from "./libraries/Strings.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract NeonShiftERC721 is IERC721Metadata, IERC721Errors {
+contract NeonShiftERC721 is IERC721Metadata, IERC721Errors, Ownable {
     string private _name;
     string private _symbol;
 
@@ -14,6 +18,8 @@ contract NeonShiftERC721 is IERC721Metadata, IERC721Errors {
     mapping(uint256 => address) private _owners;
     mapping(uint256 => address) private _approvals;
     mapping(address => mapping(address => bool)) private _operatorApprovals;
+
+    uint256 private _maxTokenId;
 
     modifier validAddress(address addr) {
         if (addr == address(0)) {
@@ -37,7 +43,11 @@ contract NeonShiftERC721 is IERC721Metadata, IERC721Errors {
         _;
     }
 
-    constructor(string memory name_, string memory symbol_) {
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        address gameControllerAddress_
+    ) Ownable(gameControllerAddress_) {
         _name = name_;
         _symbol = symbol_;
     }
@@ -84,6 +94,23 @@ contract NeonShiftERC721 is IERC721Metadata, IERC721Errors {
         emit ApprovalForAll(msg.sender, operator, approved);
     }
 
+    function mint(address to) external onlyOwner validAddress(to) {
+        uint256 tokenId = ++_maxTokenId;
+        _balanceOf[to]++;
+        _owners[tokenId] = to;
+
+        emit Transfer(address(0), to, tokenId);
+    }
+
+    function burn(uint256 tokenId) external onlyOwner validToken(tokenId) {
+        address owner = _owners[tokenId];
+        _balanceOf[owner]--;
+        delete _owners[tokenId];
+        delete _approvals[tokenId];
+
+        emit Transfer(owner, address(0), tokenId);
+    }
+
     function balanceOf(
         address owner
     ) external view validAddress(owner) returns (uint256) {
@@ -120,8 +147,62 @@ contract NeonShiftERC721 is IERC721Metadata, IERC721Errors {
     function tokenURI(
         uint256 tokenId
     ) external view override validToken(tokenId) returns (string memory) {
-        // TODO
-        return "";
+        IGameController gameController = IGameController(owner());
+        IGameController.Part[] memory parts = gameController.partsOf(tokenId);
+        string memory svgImage = '<svg xmlns="http://www.w3.org/2000/svg">';
+        string memory jsonParts = "[";
+        for (uint i = 0; i < parts.length; i++) {
+            svgImage = string(
+                abi.encodePacked(
+                    svgImage,
+                    '<image href="',
+                    parts[i].image,
+                    '" />'
+                )
+            );
+            if (i > 0) {
+                jsonParts = string(abi.encodePacked(jsonParts, ","));
+            }
+            jsonParts = string(
+                abi.encodePacked(
+                    jsonParts,
+                    '{"type":"',
+                    parts[i].partType,
+                    '","name":"',
+                    parts[i].name,
+                    '","rareLevel":',
+                    Strings.toString(parts[i].rareLevel),
+                    "}"
+                )
+            );
+        }
+        svgImage = string(abi.encodePacked(svgImage, "</svg>"));
+        jsonParts = string(abi.encodePacked(jsonParts, "]"));
+        string memory json = string(
+            abi.encodePacked(
+                '{"name": "',
+                _name,
+                " #",
+                Strings.toString(tokenId),
+                '", "description": "',
+                _symbol,
+                ' NFT",',
+                '"image": "data:image/svg+xml;base64,',
+                Base64.encode(bytes(svgImage)),
+                '",',
+                '"parts": ',
+                jsonParts,
+                "}"
+            )
+        );
+
+        return
+            string(
+                abi.encodePacked(
+                    "data:application/json;base64,",
+                    Base64.encode(bytes(json))
+                )
+            );
     }
 
     function supportsInterface(
