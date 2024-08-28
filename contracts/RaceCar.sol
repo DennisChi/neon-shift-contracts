@@ -5,12 +5,16 @@ import {ICarPart} from "./interfaces/ICarPart.sol";
 import {IRaceCar} from "./interfaces/IRaceCar.sol";
 import {ICarFactory} from "./interfaces/ICarFactory.sol";
 
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
-contract RaceCar is IRaceCar, Ownable {
+contract RaceCar is IRaceCar, AccessControl {
+    bytes32 public constant CAR_FACTORY_ROLE = keccak256("CAR_FACTORY_ROLE");
+
     string private _name;
     string private _symbol;
 
@@ -50,12 +54,17 @@ contract RaceCar is IRaceCar, Ownable {
     constructor(
         string memory name_,
         string memory symbol_,
-        address gameControllerAddress_,
+        address carFactoryAddress_,
         address carPartAddress_
-    ) Ownable(gameControllerAddress_) {
+    ) {
         _name = name_;
         _symbol = symbol_;
         _carPart = carPartAddress_;
+
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(CAR_FACTORY_ROLE, carFactoryAddress_);
+
+        _setRoleAdmin(CAR_FACTORY_ROLE, DEFAULT_ADMIN_ROLE);
     }
 
     function transferFrom(
@@ -103,7 +112,13 @@ contract RaceCar is IRaceCar, Ownable {
     function mint(
         address to,
         uint256[] memory partIds
-    ) external override onlyOwner validAddress(to) returns (uint256 tokenId) {
+    )
+        external
+        override
+        onlyRole(CAR_FACTORY_ROLE)
+        validAddress(to)
+        returns (uint256 tokenId)
+    {
         tokenId = ++_maxTokenId;
         _balanceOf[to]++;
         _owners[tokenId] = to;
@@ -114,7 +129,7 @@ contract RaceCar is IRaceCar, Ownable {
 
     function burn(
         uint256 tokenId
-    ) external override onlyOwner validToken(tokenId) {
+    ) external override onlyRole(CAR_FACTORY_ROLE) validToken(tokenId) {
         address owner = _owners[tokenId];
         _balanceOf[owner]--;
         delete _owners[tokenId];
@@ -217,16 +232,18 @@ contract RaceCar is IRaceCar, Ownable {
             );
     }
 
-    function supportsInterface(
-        bytes4 interfaceId
-    ) external pure returns (bool) {
-        return interfaceId == type(IRaceCar).interfaceId;
-    }
-
     function partsOf(
         uint256 tokenId
     ) external view validToken(tokenId) returns (uint256[] memory partIds) {
         return _partsOf[tokenId];
+    }
+
+    function supportsInterface(
+        bytes4 interfaceId
+    ) public view override(AccessControl, IERC165) returns (bool) {
+        return
+            interfaceId == type(IRaceCar).interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 
     function _safeTransferFrom(

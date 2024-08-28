@@ -4,12 +4,21 @@ pragma solidity ^0.8.20;
 import {ICarPart} from "./interfaces/ICarPart.sol";
 import {ICarFactory} from "./interfaces/ICarFactory.sol";
 
+import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 
-contract CarPart is ICarPart, Ownable {
+contract CarPart is ICarPart, AccessControl {
+    bytes32 public constant CAR_FACTORY_ROLE = keccak256("CAR_FACTORY_ROLE");
+
+    bytes32 public constant PART_TYPES =
+        keccak256("LIGHTING") |
+            keccak256("PAINTING") |
+            keccak256("ENGINE") |
+            keccak256("TIRES");
+
     mapping(address => mapping(address => bool)) private _operatorApprovals;
     mapping(address => mapping(uint256 => uint256)) private _balances;
     mapping(uint256 => Part) private _partOf;
@@ -53,9 +62,12 @@ contract CarPart is ICarPart, Ownable {
         _;
     }
 
-    constructor(
-        address gameControllerAddress_
-    ) Ownable(gameControllerAddress_) {}
+    constructor(address carFactoryAddress_) {
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _grantRole(CAR_FACTORY_ROLE, carFactoryAddress_);
+
+        _setRoleAdmin(CAR_FACTORY_ROLE, DEFAULT_ADMIN_ROLE);
+    }
 
     function setApprovalForAll(
         address operator,
@@ -131,7 +143,7 @@ contract CarPart is ICarPart, Ownable {
     function mint(
         address to,
         uint256 id
-    ) external override onlyOwner validReceiver(to) {
+    ) external override onlyRole(CAR_FACTORY_ROLE) validReceiver(to) {
         _mint(to, id);
         emit TransferSingle(msg.sender, address(0), to, id, 1);
     }
@@ -139,7 +151,7 @@ contract CarPart is ICarPart, Ownable {
     function burn(
         address from,
         uint256 id
-    ) external override onlyOwner validReceiver(from) {
+    ) external override onlyRole(CAR_FACTORY_ROLE) validReceiver(from) {
         _burn(from, id);
         emit TransferSingle(msg.sender, from, address(0), id, 1);
     }
@@ -147,7 +159,7 @@ contract CarPart is ICarPart, Ownable {
     function batchMint(
         address to,
         uint256[] memory ids
-    ) external override onlyOwner validReceiver(to) {
+    ) external override onlyRole(CAR_FACTORY_ROLE) validReceiver(to) {
         for (uint256 i = 0; i < ids.length; i++) {
             _mint(to, ids[i]);
         }
@@ -161,7 +173,7 @@ contract CarPart is ICarPart, Ownable {
     function batchBurn(
         address from,
         uint256[] memory ids
-    ) external override onlyOwner validReceiver(from) {
+    ) external override onlyRole(CAR_FACTORY_ROLE) validReceiver(from) {
         for (uint256 i = 0; i < ids.length; i++) {
             _burn(from, ids[i]);
         }
@@ -172,11 +184,21 @@ contract CarPart is ICarPart, Ownable {
         emit TransferBatch(msg.sender, from, address(0), ids, amounts);
     }
 
-    // TODO: only admin, verify parts
-    function addParts(Part[] memory parts) external {
+    function addParts(
+        Part[] memory parts
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
         uint256 partId = _maxPartId + 1;
         for (uint256 i = 0; i < parts.length; i++) {
             Part memory part = parts[i];
+            if (part.rareLevel < 1 || part.rareLevel > 4) {
+                revert CarPartInvalidPart(part);
+            }
+            bytes32 partType = keccak256(bytes(part.partType));
+            bytes32 selectedPartType = PART_TYPES & partType;
+            if (partType != selectedPartType) {
+                revert CarPartInvalidPart(part);
+            }
+
             part.id = partId;
             _partOf[partId] = part;
             partId++;
@@ -252,8 +274,10 @@ contract CarPart is ICarPart, Ownable {
 
     function supportsInterface(
         bytes4 interfaceId
-    ) external pure override returns (bool) {
-        return interfaceId == type(ICarPart).interfaceId;
+    ) public view virtual override(AccessControl, IERC165) returns (bool) {
+        return
+            interfaceId == type(ICarPart).interfaceId ||
+            super.supportsInterface(interfaceId);
     }
 
     function _safeTransferFrom(

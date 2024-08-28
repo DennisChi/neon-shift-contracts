@@ -13,6 +13,8 @@ interface ICarPart is IERC1155MetadataURI, IERC1155Errors {
         string image;
     }
 
+    error CarPartInvalidPart(Part part);
+
     function mint(address to, uint256 id) external;
 
     function burn(address from, uint256 id) external;

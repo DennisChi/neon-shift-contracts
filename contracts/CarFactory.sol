@@ -7,11 +7,7 @@ import {ICarPart} from "./interfaces/ICarPart.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-// TODO: Move the part section to CarPart and RaceCar contracts
-// 1. replace the ownable with access control
-//    ADMIN_ROLE, CAR_FACTORY_ROLE
 contract CarFactory is ICarFactory, Ownable {
-    uint256 private _maxPartId;
     address private _carPart;
     address private _raceCar;
 
