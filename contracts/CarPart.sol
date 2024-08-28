@@ -1,24 +1,20 @@
 // SPDX-License-Identifier: GLP-3.0-or-later
 pragma solidity ^0.8.20;
 
-import {IERC1155} from "./interfaces/IERC1155.sol";
-import {IERC1155MetadataURI} from "./interfaces/IERC1155MetadataURI.sol";
-import {IERC1155Errors} from "./interfaces/IERC1155Errors.sol";
-import {IERC1155Receiver} from "./interfaces/IERC1155Receiver.sol";
-import {IERC1155BurnMint} from "./interfaces/IERC1155BurnMint.sol";
-import {Ownable} from "./access/Ownable.sol";
+import {ICarPart} from "./interfaces/ICarPart.sol";
 import {ICarFactory} from "./interfaces/ICarFactory.sol";
-import {Base64} from "./libraries/Base64.sol";
-import {Strings} from "./libraries/Strings.sol";
 
-contract CarPart is
-    IERC1155MetadataURI,
-    IERC1155Errors,
-    IERC1155BurnMint,
-    Ownable
-{
+import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC1155Receiver} from "@openzeppelin/contracts/token/ERC1155/IERC1155Receiver.sol";
+
+contract CarPart is ICarPart, Ownable {
     mapping(address => mapping(address => bool)) private _operatorApprovals;
     mapping(address => mapping(uint256 => uint256)) private _balances;
+    mapping(uint256 => Part) private _partOf;
+
+    uint256 private _maxPartId;
 
     modifier validSender(address sender) {
         if (sender == address(0)) {
@@ -176,6 +172,18 @@ contract CarPart is
         emit TransferBatch(msg.sender, from, address(0), ids, amounts);
     }
 
+    // TODO: only admin, verify parts
+    function addParts(Part[] memory parts) external {
+        uint256 partId = _maxPartId + 1;
+        for (uint256 i = 0; i < parts.length; i++) {
+            Part memory part = parts[i];
+            part.id = partId;
+            _partOf[partId] = part;
+            partId++;
+        }
+        _maxPartId = partId;
+    }
+
     function balanceOf(
         address account,
         uint256 id
@@ -204,8 +212,7 @@ contract CarPart is
     }
 
     function uri(uint256 id) external view returns (string memory) {
-        ICarFactory gameController = ICarFactory(owner());
-        ICarFactory.Part memory part = gameController.partOf(id);
+        Part memory part = _partOf[id];
         string memory json = string(
             abi.encodePacked(
                 '{"name":"',
@@ -229,12 +236,24 @@ contract CarPart is
             );
     }
 
+    function partOf(uint256 tokenId) external view returns (Part memory part) {
+        return _partOf[tokenId];
+    }
+
+    function partsOf(
+        uint256[] memory partIds
+    ) external view returns (Part[] memory parts) {
+        parts = new Part[](partIds.length);
+        for (uint256 i = 0; i < partIds.length; i++) {
+            parts[i] = _partOf[partIds[i]];
+        }
+        return parts;
+    }
+
     function supportsInterface(
         bytes4 interfaceId
     ) external pure override returns (bool) {
-        return
-            interfaceId == type(IERC1155).interfaceId ||
-            interfaceId == type(IERC1155MetadataURI).interfaceId;
+        return interfaceId == type(ICarPart).interfaceId;
     }
 
     function _safeTransferFrom(

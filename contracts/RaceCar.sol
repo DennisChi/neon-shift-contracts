@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.20;
 
-import {IERC165} from "./interfaces/IERC165.sol";
-import {IERC721Metadata} from "./interfaces/IERC721Metadata.sol";
-import {IERC721Errors} from "./interfaces/IERC721Errors.sol";
-import {IERC721Receiver} from "./interfaces/IERC721Receiver.sol";
+import {ICarPart} from "./interfaces/ICarPart.sol";
+import {IRaceCar} from "./interfaces/IRaceCar.sol";
 import {ICarFactory} from "./interfaces/ICarFactory.sol";
-import {Base64} from "./libraries/Base64.sol";
-import {Strings} from "./libraries/Strings.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {IERC721BurnMint} from "./interfaces/IERC721BurnMint.sol";
 
-contract RaceCar is IERC721Metadata, IERC721Errors, IERC721BurnMint, Ownable {
+import {IERC721Receiver} from "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
+import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
+
+contract RaceCar is IRaceCar, Ownable {
     string private _name;
     string private _symbol;
 
@@ -19,8 +18,12 @@ contract RaceCar is IERC721Metadata, IERC721Errors, IERC721BurnMint, Ownable {
     mapping(uint256 => address) private _owners;
     mapping(uint256 => address) private _approvals;
     mapping(address => mapping(address => bool)) private _operatorApprovals;
+    // carId => partIds
+    mapping(uint256 => uint256[]) private _partsOf;
 
     uint256 private _maxTokenId;
+
+    address private _carPart;
 
     modifier validAddress(address addr) {
         if (addr == address(0)) {
@@ -47,10 +50,12 @@ contract RaceCar is IERC721Metadata, IERC721Errors, IERC721BurnMint, Ownable {
     constructor(
         string memory name_,
         string memory symbol_,
-        address gameControllerAddress_
+        address gameControllerAddress_,
+        address carPartAddress_
     ) Ownable(gameControllerAddress_) {
         _name = name_;
         _symbol = symbol_;
+        _carPart = carPartAddress_;
     }
 
     function transferFrom(
@@ -96,15 +101,15 @@ contract RaceCar is IERC721Metadata, IERC721Errors, IERC721BurnMint, Ownable {
     }
 
     function mint(
-        address to
+        address to,
+        uint256[] memory partIds
     ) external override onlyOwner validAddress(to) returns (uint256 tokenId) {
         tokenId = ++_maxTokenId;
         _balanceOf[to]++;
         _owners[tokenId] = to;
+        _partsOf[tokenId] = partIds;
 
         emit Transfer(address(0), to, tokenId);
-
-        return tokenId;
     }
 
     function burn(
@@ -154,8 +159,8 @@ contract RaceCar is IERC721Metadata, IERC721Errors, IERC721BurnMint, Ownable {
     function tokenURI(
         uint256 tokenId
     ) external view override validToken(tokenId) returns (string memory) {
-        ICarFactory gameController = ICarFactory(owner());
-        ICarFactory.Part[] memory parts = gameController.partsOf(tokenId);
+        uint256[] memory partIds = _partsOf[tokenId];
+        ICarPart.Part[] memory parts = ICarPart(_carPart).partsOf(partIds);
         string memory svgImage = '<svg xmlns="http://www.w3.org/2000/svg">';
         string memory jsonParts = "[";
         for (uint i = 0; i < parts.length; i++) {
@@ -215,9 +220,13 @@ contract RaceCar is IERC721Metadata, IERC721Errors, IERC721BurnMint, Ownable {
     function supportsInterface(
         bytes4 interfaceId
     ) external pure returns (bool) {
-        return
-            interfaceId == type(IERC721Metadata).interfaceId ||
-            interfaceId == type(IERC165).interfaceId;
+        return interfaceId == type(IRaceCar).interfaceId;
+    }
+
+    function partsOf(
+        uint256 tokenId
+    ) external view validToken(tokenId) returns (uint256[] memory partIds) {
+        return _partsOf[tokenId];
     }
 
     function _safeTransferFrom(

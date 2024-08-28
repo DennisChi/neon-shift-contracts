@@ -16,7 +16,5 @@ interface ICarFactory {
         uint256[] memory partIds
     ) external returns (uint256 carId);
 
-    function partsOf(uint256 carId) external view returns (Part[] memory);
-
-    function partOf(uint256 partId) external view returns (Part memory);
+    function buildCar() external payable returns (uint256 carId);
 }
