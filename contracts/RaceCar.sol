@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.20;
 
-import {ICarPart} from "./interfaces/ICarPart.sol";
+import {ICarPart, Part} from "./interfaces/ICarPart.sol";
 import {IRaceCar} from "./interfaces/IRaceCar.sol";
 import {ICarFactory} from "./interfaces/ICarFactory.sol";
 
@@ -175,7 +175,7 @@ contract RaceCar is IRaceCar, AccessControl {
         uint256 tokenId
     ) external view override validToken(tokenId) returns (string memory) {
         uint256[] memory partIds = _partsOf[tokenId];
-        ICarPart.Part[] memory parts = ICarPart(_carPart).partsOf(partIds);
+        Part[] memory parts = ICarPart(_carPart).partsOf(partIds);
         string memory svgImage = '<svg xmlns="http://www.w3.org/2000/svg">';
         string memory jsonParts = "[";
         for (uint i = 0; i < parts.length; i++) {

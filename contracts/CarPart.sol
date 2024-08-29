@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GLP-3.0-or-later
 pragma solidity ^0.8.20;
 
-import {ICarPart} from "./interfaces/ICarPart.sol";
+import {ICarPart, Part} from "./interfaces/ICarPart.sol";
 import {ICarFactory} from "./interfaces/ICarFactory.sol";
 
 import {IERC165} from "@openzeppelin/contracts/interfaces/IERC165.sol";
@@ -14,16 +14,14 @@ contract CarPart is ICarPart, AccessControl {
     bytes32 public constant CAR_FACTORY_ROLE = keccak256("CAR_FACTORY_ROLE");
 
     bytes32 public constant PART_TYPES =
-        keccak256("LIGHTING") |
-            keccak256("PAINTING") |
-            keccak256("ENGINE") |
-            keccak256("TIRES");
+        keccak256("Lighting") |
+            keccak256("Painting") |
+            keccak256("Engine") |
+            keccak256("Tires");
 
     mapping(address => mapping(address => bool)) private _operatorApprovals;
     mapping(address => mapping(uint256 => uint256)) private _balances;
     mapping(uint256 => Part) private _partOf;
-
-    uint256 private _maxPartId;
 
     modifier validSender(address sender) {
         if (sender == address(0)) {
@@ -184,10 +182,16 @@ contract CarPart is ICarPart, AccessControl {
         emit TransferBatch(msg.sender, from, address(0), ids, amounts);
     }
 
-    function addParts(
-        Part[] memory parts
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
-        uint256 partId = _maxPartId + 1;
+    function addParts(Part[] memory parts) external {
+        if (
+            !hasRole(DEFAULT_ADMIN_ROLE, msg.sender) &&
+            !hasRole(CAR_FACTORY_ROLE, msg.sender)
+        ) {
+            revert AccessControlUnauthorizedAccount(
+                msg.sender,
+                DEFAULT_ADMIN_ROLE | CAR_FACTORY_ROLE
+            );
+        }
         for (uint256 i = 0; i < parts.length; i++) {
             Part memory part = parts[i];
             if (part.rareLevel < 1 || part.rareLevel > 4) {
@@ -199,11 +203,19 @@ contract CarPart is ICarPart, AccessControl {
                 revert CarPartInvalidPart(part);
             }
 
+            uint256 partId = uint256(
+                keccak256(
+                    abi.encodePacked(
+                        part.name,
+                        part.partType,
+                        part.rareLevel,
+                        part.image
+                    )
+                )
+            );
             part.id = partId;
             _partOf[partId] = part;
-            partId++;
         }
-        _maxPartId = partId;
     }
 
     function balanceOf(

@@ -4,15 +4,15 @@ pragma solidity ^0.8.20;
 import {IERC1155MetadataURI} from "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
 import {IERC1155Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 
-interface ICarPart is IERC1155MetadataURI, IERC1155Errors {
-    struct Part {
-        uint256 id;
-        uint256 rareLevel;
-        string name;
-        string partType;
-        string image;
-    }
+struct Part {
+    uint256 id;
+    uint256 rareLevel;
+    string name;
+    string partType;
+    string image;
+}
 
+interface ICarPart is IERC1155MetadataURI, IERC1155Errors {
     error CarPartInvalidPart(Part part);
 
     function mint(address to, uint256 id) external;

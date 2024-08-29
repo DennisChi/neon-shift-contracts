@@ -2,13 +2,11 @@
 pragma solidity ^0.8.20;
 
 interface ICarFactory {
-    struct Part {
-        uint256 id;
-        uint256 rareLevel;
-        string name;
-        string partType;
-        string image;
-    }
+    error CarFactoryInvalidPartsLength();
+
+    error CarFactoryInvalidPartsType();
+
+    error CarFactoryPartNotOwned();
 
     function disassemble(uint256 carId) external;
 
@@ -16,5 +14,5 @@ interface ICarFactory {
         uint256[] memory partIds
     ) external returns (uint256 carId);
 
-    function buildCar() external payable returns (uint256 carId);
+    function buildCar() external payable;
 }
