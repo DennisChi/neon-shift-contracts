@@ -6,6 +6,8 @@ import {IERC721Metadata} from "@openzeppelin/contracts/token/ERC721/extensions/I
 import {IERC721Errors} from "@openzeppelin/contracts/interfaces/draft-IERC6093.sol";
 
 interface IRaceCar is IERC721, IERC721Metadata, IERC721Errors {
+    error RaceCarInvalidPartId(uint256 partId);
+
     function mint(
         address to,
         uint256[] memory partIds

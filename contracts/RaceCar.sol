@@ -42,6 +42,12 @@ contract RaceCar is IRaceCar, ERC721, AccessControl {
         address to,
         uint256[] memory partIds
     ) external override onlyRole(CAR_FACTORY_ROLE) returns (uint256 tokenId) {
+        for (uint256 i = 0; i < partIds.length; i++) {
+            if (ICarPart(_carPart).partOf(partIds[i]).id == 0) {
+                revert RaceCarInvalidPartId(partIds[i]);
+            }
+        }
+
         tokenId = ++_maxTokenId;
         _safeMint(to, tokenId);
         _partsOf[tokenId] = partIds;

@@ -35,6 +35,10 @@ contract CarPart is ICarPart, ERC1155, AccessControl {
         address to,
         uint256 id
     ) external override onlyRole(CAR_FACTORY_ROLE) {
+        if (_partOf[id].id == 0) {
+            revert CarPartInvalidPartId(id);
+        }
+
         _mint(to, id, 1, "");
     }
 
@@ -49,6 +53,11 @@ contract CarPart is ICarPart, ERC1155, AccessControl {
         address to,
         uint256[] memory ids
     ) external override onlyRole(CAR_FACTORY_ROLE) {
+        for (uint256 i = 0; i < ids.length; i++) {
+            if (_partOf[ids[i]].id == 0) {
+                revert CarPartInvalidPartId(ids[i]);
+            }
+        }
         uint256[] memory amounts = new uint256[](ids.length);
         for (uint256 i = 0; i < ids.length; i++) {
             amounts[i] = 1;

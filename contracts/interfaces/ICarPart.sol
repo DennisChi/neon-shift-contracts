@@ -15,6 +15,8 @@ struct Part {
 interface ICarPart is IERC1155MetadataURI, IERC1155Errors {
     error CarPartInvalidPart(Part part);
 
+    error CarPartInvalidPartId(uint256 partId);
+
     function mint(address to, uint256 id) external;
 
     function burn(address from, uint256 id) external;
