@@ -51,7 +51,8 @@ contract CarFactory is ICarFactory, VRFConsumerBaseV2Plus {
         Part[] memory defaultLightingParts_,
         Part[] memory defaultPaintingParts_,
         Part[] memory defaultEngineParts_,
-        Part[] memory defaultTiresParts_
+        Part[] memory defaultTiresParts_,
+        uint256[] memory dropWeightOf_
     ) VRFConsumerBaseV2Plus(vrfCoordinator_) {
         _initializeAddresses(carPart_, raceCar_);
         _initializeVRFParameters(
@@ -66,6 +67,7 @@ contract CarFactory is ICarFactory, VRFConsumerBaseV2Plus {
             defaultEngineParts_,
             defaultTiresParts_
         );
+        _initializeDropWeightOf(dropWeightOf_);
     }
 
     function disassemble(uint256 carId) external override {
@@ -236,5 +238,11 @@ contract CarFactory is ICarFactory, VRFConsumerBaseV2Plus {
                     )
                 )
             );
+    }
+
+    function _initializeDropWeightOf(uint256[] memory dropWeightOf_) private {
+        for (uint256 i = 0; i < dropWeightOf_.length; i++) {
+            _dropWeightOf[i] = dropWeightOf_[i];
+        }
     }
 }
