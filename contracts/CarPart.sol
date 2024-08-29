@@ -14,7 +14,9 @@ import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 
 contract CarPart is ICarPart, ERC1155, AccessControl {
-    bytes32 public constant CAR_FACTORY_ROLE = keccak256("CAR_FACTORY_ROLE");
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant MINTABLE_ROLE = keccak256("MINTABLE_ROLE");
+    bytes32 public constant BURNABLE_ROLE = keccak256("BURNABLE_ROLE");
 
     bytes32 public constant PART_TYPES =
         keccak256("Lighting") |
@@ -24,17 +26,18 @@ contract CarPart is ICarPart, ERC1155, AccessControl {
 
     mapping(uint256 => Part) private _partOf;
 
-    constructor(address carFactoryAddress_) ERC1155("") {
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(CAR_FACTORY_ROLE, carFactoryAddress_);
+    constructor() ERC1155("") {
+        _grantRole(ADMIN_ROLE, msg.sender);
 
-        _setRoleAdmin(CAR_FACTORY_ROLE, DEFAULT_ADMIN_ROLE);
+        _setRoleAdmin(ADMIN_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(MINTABLE_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(BURNABLE_ROLE, ADMIN_ROLE);
     }
 
     function mint(
         address to,
         uint256 id
-    ) external override onlyRole(CAR_FACTORY_ROLE) {
+    ) external override onlyRole(MINTABLE_ROLE) {
         if (_partOf[id].id == 0) {
             revert CarPartInvalidPartId(id);
         }
@@ -45,14 +48,14 @@ contract CarPart is ICarPart, ERC1155, AccessControl {
     function burn(
         address from,
         uint256 id
-    ) external override onlyRole(CAR_FACTORY_ROLE) {
+    ) external override onlyRole(BURNABLE_ROLE) {
         _burn(from, id, 1);
     }
 
     function batchMint(
         address to,
         uint256[] memory ids
-    ) external override onlyRole(CAR_FACTORY_ROLE) {
+    ) external override onlyRole(MINTABLE_ROLE) {
         for (uint256 i = 0; i < ids.length; i++) {
             if (_partOf[ids[i]].id == 0) {
                 revert CarPartInvalidPartId(ids[i]);
@@ -68,7 +71,7 @@ contract CarPart is ICarPart, ERC1155, AccessControl {
     function batchBurn(
         address from,
         uint256[] memory ids
-    ) external override onlyRole(CAR_FACTORY_ROLE) {
+    ) external override onlyRole(BURNABLE_ROLE) {
         uint256[] memory amounts = new uint256[](ids.length);
         for (uint256 i = 0; i < ids.length; i++) {
             amounts[i] = 1;
@@ -76,16 +79,7 @@ contract CarPart is ICarPart, ERC1155, AccessControl {
         _burnBatch(from, ids, amounts);
     }
 
-    function addParts(Part[] memory parts) external {
-        if (
-            !hasRole(DEFAULT_ADMIN_ROLE, msg.sender) &&
-            !hasRole(CAR_FACTORY_ROLE, msg.sender)
-        ) {
-            revert AccessControlUnauthorizedAccount(
-                msg.sender,
-                DEFAULT_ADMIN_ROLE
-            );
-        }
+    function addParts(Part[] memory parts) external onlyRole(ADMIN_ROLE) {
         for (uint256 i = 0; i < parts.length; i++) {
             Part memory part = parts[i];
             if (part.rareLevel < 1 || part.rareLevel > 4) {

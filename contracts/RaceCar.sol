@@ -15,6 +15,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 import {Base64} from "@openzeppelin/contracts/utils/Base64.sol";
 
 contract RaceCar is IRaceCar, ERC721, AccessControl {
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant CAR_FACTORY_ROLE = keccak256("CAR_FACTORY_ROLE");
 
     // carId => partIds
@@ -26,16 +27,16 @@ contract RaceCar is IRaceCar, ERC721, AccessControl {
 
     constructor(
         string memory name_,
-        string memory symbol_,
-        address carFactoryAddress_,
-        address carPartAddress_
+        string memory symbol_
     ) ERC721(name_, symbol_) {
-        _carPart = carPartAddress_;
+        _grantRole(ADMIN_ROLE, msg.sender);
 
-        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
-        _grantRole(CAR_FACTORY_ROLE, carFactoryAddress_);
+        _setRoleAdmin(CAR_FACTORY_ROLE, ADMIN_ROLE);
+    }
 
-        _setRoleAdmin(CAR_FACTORY_ROLE, DEFAULT_ADMIN_ROLE);
+    function initialize(address carPart_) external onlyRole(ADMIN_ROLE) {
+        if (address(_carPart) != address(0)) revert();
+        _carPart = carPart_;
     }
 
     function mint(

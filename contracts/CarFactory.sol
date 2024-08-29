@@ -41,8 +41,6 @@ contract CarFactory is ICarFactory, VRFConsumerBaseV2Plus {
     uint256 private _totalWeightOfDefaultTiresParts;
 
     constructor(
-        address carPart_,
-        address raceCar_,
         address vrfCoordinator_,
         uint256 subId_,
         bytes32 keyHash_,
@@ -54,7 +52,6 @@ contract CarFactory is ICarFactory, VRFConsumerBaseV2Plus {
         Part[] memory defaultTiresParts_,
         uint256[] memory dropWeightOf_
     ) VRFConsumerBaseV2Plus(vrfCoordinator_) {
-        _initializeAddresses(carPart_, raceCar_);
         _initializeVRFParameters(
             subId_,
             keyHash_,
@@ -68,6 +65,19 @@ contract CarFactory is ICarFactory, VRFConsumerBaseV2Plus {
             defaultTiresParts_
         );
         _initializeDropWeightOf(dropWeightOf_);
+    }
+
+    function initializeCarAddresses(
+        address carPart_,
+        address raceCar_
+    ) external onlyOwner {
+        if (
+            address(_carPart) != address(0) || address(_raceCar) != address(0)
+        ) {
+            revert();
+        }
+        _carPart = carPart_;
+        _raceCar = raceCar_;
     }
 
     function disassemble(uint256 carId) external override {
@@ -163,11 +173,6 @@ contract CarFactory is ICarFactory, VRFConsumerBaseV2Plus {
         partIds[3] = _defaultTiresParts[randomTires].id;
 
         IRaceCar(_raceCar).mint(builder, partIds);
-    }
-
-    function _initializeAddresses(address carPart_, address raceCar_) private {
-        _carPart = carPart_;
-        _raceCar = raceCar_;
     }
 
     function _initializeVRFParameters(

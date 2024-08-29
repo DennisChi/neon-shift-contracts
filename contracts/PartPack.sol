@@ -19,7 +19,10 @@ contract PartPack is
     VRFConsumerBaseV2Plus,
     IPartPack
 {
-    ICarPart private immutable _carPart;
+    bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
+    bytes32 public constant PACK_MANAGER_ROLE = keccak256("PACK_MANAGER_ROLE");
+
+    ICarPart private _carPart;
 
     mapping(uint256 tokenId => uint256 remaining) private _remainingOf;
     mapping(uint256 tokenId => uint256 price) private _priceOf;
@@ -34,7 +37,6 @@ contract PartPack is
     uint16 private immutable _requestConfirmations;
 
     constructor(
-        address carPart_,
         address vrfCoordinator_,
         uint256 subId_,
         bytes32 keyHash_,
@@ -42,7 +44,6 @@ contract PartPack is
         uint16 requestConfirmations_,
         uint256[] memory dropWeights_
     ) VRFConsumerBaseV2Plus(vrfCoordinator_) ERC1155("") {
-        _carPart = ICarPart(carPart_);
         _subId = subId_;
         _keyHash = keyHash_;
         _callbackGasLimit = callbackGasLimit_;
@@ -50,6 +51,16 @@ contract PartPack is
         for (uint256 i = 0; i < dropWeights_.length; i++) {
             _dropWeightOf[i + 1] = dropWeights_[i];
         }
+
+        _grantRole(ADMIN_ROLE, msg.sender);
+        _setRoleAdmin(ADMIN_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(PACK_MANAGER_ROLE, ADMIN_ROLE);
+    }
+
+    function initialize(address carPart_) external onlyRole(ADMIN_ROLE) {
+        if (address(_carPart) != address(0)) revert();
+
+        _carPart = ICarPart(carPart_);
     }
 
     function open(uint256 tokenId, uint256 amount) external override {
@@ -93,7 +104,7 @@ contract PartPack is
         uint256 amount,
         Part[] memory parts,
         string calldata uri
-    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    ) external onlyRole(PACK_MANAGER_ROLE) {
         uint256[] memory partIds = new uint256[](parts.length);
         for (uint256 i = 0; i < parts.length; i++) {
             partIds[i] = parts[i].id;
@@ -112,7 +123,7 @@ contract PartPack is
         return _remainingOf[tokenId];
     }
 
-    function withdraw() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function withdraw() external onlyRole(ADMIN_ROLE) {
         payable(msg.sender).transfer(address(this).balance);
     }
 
