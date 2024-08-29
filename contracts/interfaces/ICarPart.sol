@@ -25,6 +25,8 @@ interface ICarPart is IERC1155MetadataURI, IERC1155Errors {
 
     function batchBurn(address from, uint256[] memory ids) external;
 
+    function addParts(Part[] memory parts) external;
+
     function partOf(uint256 partId) external view returns (Part memory);
 
     function partsOf(
